@@ -1,70 +1,125 @@
-# Getting Started with Create React App
+# Policy Persistency Tracker
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A React application for tracking and analyzing insurance policy persistency data. Upload CSV files containing NSF (Non-Sufficient Funds) and cancellation data to analyze policy duration, termination patterns, and agent performance.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+- 📊 **CSV Data Processing**: Upload and process NSF and cancellation CSV files
+- 📈 **Data Visualization**: Interactive charts and analytics
+- 💾 **Database Integration**: Automatic data persistence with Supabase
+- 🔄 **Real-time Updates**: Live data loading and synchronization
+- 📱 **Responsive Design**: Modern, mobile-friendly interface
+- 🎯 **Performance Tracking**: Agent and policy performance metrics
 
-### `npm start`
+## Prerequisites
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- Node.js (v14 or higher)
+- npm or yarn
+- Supabase account and project
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Setup Instructions
 
-### `npm test`
+### 1. Clone the Repository
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+```bash
+git clone https://github.com/eyecrackcodes/policy-persistency.git
+cd policy-persistency
+```
 
-### `npm run build`
+### 2. Install Dependencies
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```bash
+npm install
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### 3. Environment Configuration
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Copy the example environment file and configure your Supabase credentials:
 
-### `npm run eject`
+```bash
+cp .env.example .env
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+Edit `.env` and add your Supabase credentials:
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+```env
+REACT_APP_SUPABASE_URL=your_supabase_project_url_here
+REACT_APP_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+**How to get Supabase credentials:**
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+1. Go to [Supabase Dashboard](https://app.supabase.com)
+2. Select your project
+3. Go to Settings → API
+4. Copy the "Project URL" and "anon public" key
 
-## Learn More
+### 4. Database Setup
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+The application will automatically create the required database tables on first run. See `SUPABASE_SETUP.md` for detailed database configuration.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### 5. Start the Application
 
-### Code Splitting
+```bash
+npm start
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+Open [http://localhost:3000](http://localhost:3000) to view the application.
 
-### Analyzing the Bundle Size
+## Usage
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+1. **Upload CSV Files**: Drag and drop or select NSF/cancellation CSV files
+2. **View Analytics**: Explore charts and metrics on the dashboard
+3. **Database Sync**: Data is automatically saved to Supabase
+4. **Export Data**: Download processed data in various formats
 
-### Making a Progressive Web App
+## CSV File Format
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+The application expects CSV files with the following columns:
 
-### Advanced Configuration
+- Policy Number
+- Issue Date
+- Paid To Date
+- Contract Date
+- Annual Premium
+- Agent Name
+- Issue State
+- Product
+- Termination Reason
+- And more...
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+## Deployment
 
-### Deployment
+### Vercel Deployment
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+1. Build the project:
 
-### `npm run build` fails to minify
+```bash
+npm run build
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+2. Deploy to Vercel:
+
+```bash
+npx vercel --prod
+```
+
+3. Set environment variables in Vercel dashboard:
+   - `REACT_APP_SUPABASE_URL`
+   - `REACT_APP_SUPABASE_ANON_KEY`
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.
+
+## Support
+
+For issues and questions, please open a GitHub issue or contact the development team.
