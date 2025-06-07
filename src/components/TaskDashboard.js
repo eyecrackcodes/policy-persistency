@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { isMobile } from "react-device-detect";
+import useDeviceDetect from "../hooks/useDeviceDetect";
 import {
   Users,
   Clock,
@@ -22,6 +22,7 @@ import {
 } from "../services/twilioTaskService";
 
 const TaskDashboard = ({ tasks = [], onTaskUpdate }) => {
+  const { isMobile } = useDeviceDetect();
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [selectedTeamMember, setSelectedTeamMember] = useState("all");
   const [taskStats, setTaskStats] = useState({});
