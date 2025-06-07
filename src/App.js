@@ -1155,10 +1155,11 @@ function App() {
 
       // Generate retention tasks for the team
       const tasks = twilioTaskService.generateRetentionTasks(policyData);
-      setRetentionTasks(tasks);
+      const taskArray = Array.isArray(tasks) ? tasks : [];
+      setRetentionTasks(taskArray);
 
       // Send notifications for high-priority tasks
-      for (const task of tasks.filter((t) => t.priority === "high")) {
+      for (const task of taskArray.filter((t) => t.priority === "high")) {
         await twilioTaskService.sendTaskNotification(task);
         await twilioTaskService.saveTask(task);
       }

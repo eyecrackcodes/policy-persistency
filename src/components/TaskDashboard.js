@@ -38,13 +38,15 @@ const TaskDashboard = ({ tasks = [], onTaskUpdate }) => {
   }, [tasks]);
 
   const calculateTaskStats = () => {
+    const tasksArray = Array.isArray(tasks) ? tasks : [];
     const stats = {
-      total: tasks.length,
-      high: tasks.filter((t) => t.priority === "high").length,
-      medium: tasks.filter((t) => t.priority === "medium").length,
-      low: tasks.filter((t) => t.priority === "low").length,
-      overdue: tasks.filter((t) => new Date(t.dueDate) < new Date()).length,
-      dueToday: tasks.filter((t) => {
+      total: tasksArray.length,
+      high: tasksArray.filter((t) => t.priority === "high").length,
+      medium: tasksArray.filter((t) => t.priority === "medium").length,
+      low: tasksArray.filter((t) => t.priority === "low").length,
+      overdue: tasksArray.filter((t) => new Date(t.dueDate) < new Date())
+        .length,
+      dueToday: tasksArray.filter((t) => {
         const due = new Date(t.dueDate);
         const today = new Date();
         return due.toDateString() === today.toDateString();
@@ -54,11 +56,12 @@ const TaskDashboard = ({ tasks = [], onTaskUpdate }) => {
   };
 
   const calculateTeamWorkload = () => {
-    const workload = twilioTaskService.getTeamWorkload(tasks);
+    const workload = twilioTaskService.getTeamWorkload(tasksArray);
     setTeamWorkload(workload);
   };
 
-  const filteredTasks = tasks.filter((task) => {
+  const tasksArray = Array.isArray(tasks) ? tasks : [];
+  const filteredTasks = tasksArray.filter((task) => {
     const priorityMatch =
       selectedFilter === "all" || task.priority === selectedFilter;
     const teamMatch =
