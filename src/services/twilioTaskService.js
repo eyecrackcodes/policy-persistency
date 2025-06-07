@@ -1,26 +1,8 @@
 import { DatabaseService } from "../config/supabase";
-
-// Retention team configuration
-const RETENTION_TEAM = {
-  "Mark Vallejo": {
-    phone: process.env.REACT_APP_MARK_PHONE,
-    email: "mark@company.com",
-    specialties: ["high-value", "commercial"],
-    capacity: 15,
-  },
-  "Monica Archuleta": {
-    phone: process.env.REACT_APP_MONICA_PHONE,
-    email: "monica@company.com",
-    specialties: ["nsf", "payment-issues"],
-    capacity: 20,
-  },
-  "Stephen Brown": {
-    phone: process.env.REACT_APP_STEPHEN_PHONE,
-    email: "stephen@company.com",
-    specialties: ["cancellation", "retention"],
-    capacity: 18,
-  },
-};
+import {
+  taskDistributionService,
+  RETENTION_TEAM,
+} from "./taskDistributionService";
 
 class TwilioTaskService {
   constructor() {
@@ -31,11 +13,11 @@ class TwilioTaskService {
   }
 
   // Analyze policy data to generate actionable tasks
-  generateRetentionTasks(policies) {
+  async generateRetentionTasks(policies) {
     const tasks = [];
     const now = new Date();
 
-    policies.forEach((policy) => {
+    for (const policy of policies) {
       // High-priority NSF policies (recent, high premium)
       if (policy.source === "nsf" && policy.annual_premium >= 5000) {
         const daysSinceIssue = Math.floor(
@@ -58,7 +40,11 @@ class TwilioTaskService {
               "Verify updated payment information",
               "Document conversation in CRM",
             ],
-            assignedTo: this.assignTask("nsf", policy.annual_premium),
+            assignedTo: await this.assignTask(
+              "nsf",
+              policy.annual_premium,
+              "high"
+            ),
             dueDate: new Date(now.getTime() + 24 * 60 * 60 * 1000), // Due in 24 hours
             estimatedDuration: "30 minutes",
             createdAt: now,
@@ -84,7 +70,11 @@ class TwilioTaskService {
             "Address specific concerns",
             "Document retention attempt",
           ],
-          assignedTo: this.assignTask("cancellation", policy.annual_premium),
+          assignedTo: await this.assignTask(
+            "cancellation",
+            policy.annual_premium,
+            policy.annual_premium >= 3000 ? "high" : "medium"
+          ),
           dueDate: new Date(now.getTime() + 48 * 60 * 60 * 1000), // Due in 48 hours
           estimatedDuration: "45 minutes",
           createdAt: now,
@@ -108,13 +98,17 @@ class TwilioTaskService {
             "Consider policy restoration options",
             "Update collection status",
           ],
-          assignedTo: this.assignTask("recovery", policy.annual_premium),
+          assignedTo: await this.assignTask(
+            "recovery",
+            policy.annual_premium,
+            "medium"
+          ),
           dueDate: new Date(now.getTime() + 72 * 60 * 60 * 1000), // Due in 72 hours
           estimatedDuration: "20 minutes",
           createdAt: now,
         });
       }
-    });
+    }
 
     return tasks.sort((a, b) => {
       // Sort by priority and due date
@@ -126,8 +120,39 @@ class TwilioTaskService {
     });
   }
 
-  // Smart task assignment based on team member specialties and capacity
-  assignTask(taskType, premium = 0) {
+  // Enhanced task assignment using intelligent distribution
+  async assignTask(taskType, premium = 0, priority = "medium") {
+    try {
+      // Get existing tasks to analyze current workload
+      const existingTasks = await this.getExistingTasks();
+
+      // Create a mock task object for the distribution service
+      const mockTask = {
+        type: taskType,
+        premium: premium,
+        priority: priority,
+      };
+
+      // Use the distribution service to find the best assignment
+      const assignedMember = taskDistributionService.distributeTask(
+        mockTask,
+        existingTasks
+      );
+
+      console.log(
+        `🎯 Task assigned to ${assignedMember} using ${taskDistributionService.getCurrentStrategy()} strategy`
+      );
+      return assignedMember;
+    } catch (error) {
+      console.error("Error in intelligent task assignment:", error);
+
+      // Fallback to simple assignment
+      return this.fallbackAssignTask(taskType, premium);
+    }
+  }
+
+  // Fallback assignment method (original logic)
+  fallbackAssignTask(taskType, premium = 0) {
     const teamMembers = Object.keys(RETENTION_TEAM);
 
     // Find best match based on specialties
@@ -150,6 +175,31 @@ class TwilioTaskService {
     }
 
     return bestMatch;
+  }
+
+  // Get existing tasks from database
+  async getExistingTasks() {
+    try {
+      const { data, error } = await DatabaseService.supabase
+        .from("retention_tasks")
+        .select("*")
+        .eq("status", "open");
+
+      if (error) throw error;
+
+      // Convert database format to expected format
+      return data.map((task) => ({
+        id: task.task_id,
+        type: task.type,
+        priority: task.priority,
+        premium: task.premium,
+        assignedTo: task.assigned_to,
+        status: task.status,
+      }));
+    } catch (error) {
+      console.error("Error fetching existing tasks:", error);
+      return []; // Return empty array as fallback
+    }
   }
 
   // Send SMS notification to assigned team member
