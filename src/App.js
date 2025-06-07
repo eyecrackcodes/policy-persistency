@@ -1154,16 +1154,17 @@ function App() {
       setActions(generatedActions);
 
       // Generate retention tasks for the team
-      const tasks = twilioTaskService.generateRetentionTasks(policyData);
-      setRetentionTasks(tasks);
+      const tasks = await twilioTaskService.generateRetentionTasks(policyData);
+      const taskArray = Array.isArray(tasks) ? tasks : [];
+      setRetentionTasks(taskArray);
 
       // Send notifications for high-priority tasks
-      for (const task of tasks.filter((t) => t.priority === "high")) {
+      for (const task of taskArray.filter((t) => t.priority === "high")) {
         await twilioTaskService.sendTaskNotification(task);
         await twilioTaskService.saveTask(task);
       }
 
-      console.log(`📋 Generated ${tasks.length} retention tasks`);
+      console.log(`📋 Generated ${taskArray.length} retention tasks`);
     } catch (error) {
       console.error("Error generating actions:", error);
     }
