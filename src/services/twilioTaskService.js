@@ -12,6 +12,13 @@ class TwilioTaskService {
     this.workspaceId = process.env.REACT_APP_TWILIO_WORKSPACE_ID;
   }
 
+  // Generate unique task ID
+  generateTaskId(prefix, policyNumber) {
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substr(2, 9);
+    return `${prefix}-${policyNumber}-${timestamp}-${random}`;
+  }
+
   // Analyze policy data to generate actionable tasks
   async generateRetentionTasks(policies) {
     const tasks = [];
@@ -26,7 +33,7 @@ class TwilioTaskService {
 
         if (daysSinceIssue <= 30) {
           tasks.push({
-            id: `nsf-${policy.policy_nbr}`,
+            id: this.generateTaskId("nsf", policy.policy_nbr),
             type: "urgent_nsf_follow_up",
             priority: "high",
             policyNumber: policy.policy_nbr,
@@ -55,7 +62,7 @@ class TwilioTaskService {
       // Cancellation retention opportunities
       if (policy.source === "cancellation" && policy.duration <= 90) {
         tasks.push({
-          id: `retention-${policy.policy_nbr}`,
+          id: this.generateTaskId("retention", policy.policy_nbr),
           type: "early_cancellation_retention",
           priority: policy.annual_premium >= 3000 ? "high" : "medium",
           policyNumber: policy.policy_nbr,
@@ -84,7 +91,7 @@ class TwilioTaskService {
       // Premium recovery for long-running NSF cases
       if (policy.source === "nsf" && policy.duration > 60) {
         tasks.push({
-          id: `recovery-${policy.policy_nbr}`,
+          id: this.generateTaskId("recovery", policy.policy_nbr),
           type: "premium_recovery",
           priority: "medium",
           policyNumber: policy.policy_nbr,
@@ -224,8 +231,10 @@ class TwilioTaskService {
     const assignedMember = RETENTION_TEAM[task.assignedTo];
 
     if (!assignedMember || !assignedMember.phone) {
-      console.warn(`No phone number for ${task.assignedTo}`);
-      return false;
+      console.log(
+        `📧 Email notification will be used for ${task.assignedTo} (SMS phone number not configured)`
+      );
+      return this.sendEmailNotification(task);
     }
 
     const message = this.formatTaskSMS(task);
@@ -249,6 +258,32 @@ class TwilioTaskService {
       return true;
     } catch (error) {
       console.error("Error sending SMS notification:", error);
+      return false;
+    }
+  }
+
+  // Send email notification as fallback
+  async sendEmailNotification(task) {
+    try {
+      const assignedMember = RETENTION_TEAM[task.assignedTo];
+      console.log(
+        `📧 Email notification sent to ${task.assignedTo} (${assignedMember.email})`
+      );
+      console.log(`Task: ${task.policyNumber} - ${task.description}`);
+
+      // Save email notification to database
+      await this.saveNotification({
+        taskId: task.id,
+        recipientName: task.assignedTo,
+        recipientEmail: assignedMember.email,
+        message: this.formatTaskSMS(task),
+        sentAt: new Date(),
+        type: "email",
+      });
+
+      return true;
+    } catch (error) {
+      console.error("Error sending email notification:", error);
       return false;
     }
   }
@@ -279,6 +314,20 @@ Check the app for full details and action items.`;
   // Save task to database
   async saveTask(task) {
     try {
+      // Check if task already exists
+      const { data: existingTask } = await supabase
+        .from("retention_tasks")
+        .select("task_id")
+        .eq("task_id", task.id)
+        .single();
+
+      if (existingTask) {
+        console.log(
+          `📋 Task ${task.id} already exists, skipping database save`
+        );
+        return existingTask;
+      }
+
       const { data, error } = await supabase
         .from("retention_tasks")
         .insert({
@@ -299,10 +348,26 @@ Check the app for full details and action items.`;
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // Handle specific database errors
+        if (error.code === "23505") {
+          // Unique constraint violation
+          console.log(
+            `📋 Task ${task.id} already exists (unique constraint), continuing...`
+          );
+          return null;
+        }
+        throw error;
+      }
+
+      console.log(`✅ Successfully saved task ${task.id} to database`);
       return data;
     } catch (error) {
-      console.error("Error saving task:", error);
+      console.error("Error saving task:", {
+        taskId: task.id,
+        error: error.message,
+        code: error.code,
+      });
       return null;
     }
   }
