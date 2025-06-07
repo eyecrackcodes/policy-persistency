@@ -1154,7 +1154,7 @@ function App() {
       setActions(generatedActions);
 
       // Generate retention tasks for the team
-      const tasks = twilioTaskService.generateRetentionTasks(policyData);
+      const tasks = await twilioTaskService.generateRetentionTasks(policyData);
       const taskArray = Array.isArray(tasks) ? tasks : [];
       setRetentionTasks(taskArray);
 
@@ -1164,7 +1164,7 @@ function App() {
         await twilioTaskService.saveTask(task);
       }
 
-      console.log(`📋 Generated ${tasks.length} retention tasks`);
+      console.log(`📋 Generated ${taskArray.length} retention tasks`);
     } catch (error) {
       console.error("Error generating actions:", error);
     }
