@@ -1,0 +1,318 @@
+import { DatabaseService } from "../config/supabase";
+
+// Retention team configuration
+const RETENTION_TEAM = {
+  "Mark Vallejo": {
+    phone: process.env.REACT_APP_MARK_PHONE,
+    email: "mark@company.com",
+    specialties: ["high-value", "commercial"],
+    capacity: 15,
+  },
+  "Monica Archuleta": {
+    phone: process.env.REACT_APP_MONICA_PHONE,
+    email: "monica@company.com",
+    specialties: ["nsf", "payment-issues"],
+    capacity: 20,
+  },
+  "Stephen Brown": {
+    phone: process.env.REACT_APP_STEPHEN_PHONE,
+    email: "stephen@company.com",
+    specialties: ["cancellation", "retention"],
+    capacity: 18,
+  },
+};
+
+class TwilioTaskService {
+  constructor() {
+    this.twilioAccountSid = process.env.REACT_APP_TWILIO_ACCOUNT_SID;
+    this.twilioAuthToken = process.env.REACT_APP_TWILIO_AUTH_TOKEN;
+    this.twilioPhoneNumber = process.env.REACT_APP_TWILIO_PHONE_NUMBER;
+    this.workspaceId = process.env.REACT_APP_TWILIO_WORKSPACE_ID;
+  }
+
+  // Analyze policy data to generate actionable tasks
+  generateRetentionTasks(policies) {
+    const tasks = [];
+    const now = new Date();
+
+    policies.forEach((policy) => {
+      // High-priority NSF policies (recent, high premium)
+      if (policy.source === "nsf" && policy.annual_premium >= 5000) {
+        const daysSinceIssue = Math.floor(
+          (now - new Date(policy.issue_date)) / (1000 * 60 * 60 * 24)
+        );
+
+        if (daysSinceIssue <= 30) {
+          tasks.push({
+            id: `nsf-${policy.policy_nbr}`,
+            type: "urgent_nsf_follow_up",
+            priority: "high",
+            policyNumber: policy.policy_nbr,
+            customerName: policy.agent_name,
+            premium: policy.annual_premium,
+            issueDate: policy.issue_date,
+            description: `Urgent NSF follow-up for high-value policy ($${policy.annual_premium.toLocaleString()})`,
+            suggestedActions: [
+              "Contact customer within 24 hours",
+              "Offer payment plan options",
+              "Verify updated payment information",
+              "Document conversation in CRM",
+            ],
+            assignedTo: this.assignTask("nsf", policy.annual_premium),
+            dueDate: new Date(now.getTime() + 24 * 60 * 60 * 1000), // Due in 24 hours
+            estimatedDuration: "30 minutes",
+            createdAt: now,
+          });
+        }
+      }
+
+      // Cancellation retention opportunities
+      if (policy.source === "cancellation" && policy.duration <= 90) {
+        tasks.push({
+          id: `retention-${policy.policy_nbr}`,
+          type: "early_cancellation_retention",
+          priority: policy.annual_premium >= 3000 ? "high" : "medium",
+          policyNumber: policy.policy_nbr,
+          customerName: policy.agent_name,
+          premium: policy.annual_premium,
+          reason: policy.termination_reason,
+          duration: policy.duration,
+          description: `Early cancellation retention opportunity - ${policy.duration} days`,
+          suggestedActions: [
+            "Call customer to understand cancellation reason",
+            "Offer retention incentives if applicable",
+            "Address specific concerns",
+            "Document retention attempt",
+          ],
+          assignedTo: this.assignTask("cancellation", policy.annual_premium),
+          dueDate: new Date(now.getTime() + 48 * 60 * 60 * 1000), // Due in 48 hours
+          estimatedDuration: "45 minutes",
+          createdAt: now,
+        });
+      }
+
+      // Premium recovery for long-running NSF cases
+      if (policy.source === "nsf" && policy.duration > 60) {
+        tasks.push({
+          id: `recovery-${policy.policy_nbr}`,
+          type: "premium_recovery",
+          priority: "medium",
+          policyNumber: policy.policy_nbr,
+          customerName: policy.agent_name,
+          premium: policy.annual_premium,
+          duration: policy.duration,
+          description: `Premium recovery for extended NSF case (${policy.duration} days)`,
+          suggestedActions: [
+            "Review payment history",
+            "Contact customer for payment arrangement",
+            "Consider policy restoration options",
+            "Update collection status",
+          ],
+          assignedTo: this.assignTask("recovery", policy.annual_premium),
+          dueDate: new Date(now.getTime() + 72 * 60 * 60 * 1000), // Due in 72 hours
+          estimatedDuration: "20 minutes",
+          createdAt: now,
+        });
+      }
+    });
+
+    return tasks.sort((a, b) => {
+      // Sort by priority and due date
+      const priorityOrder = { high: 3, medium: 2, low: 1 };
+      if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
+        return priorityOrder[b.priority] - priorityOrder[a.priority];
+      }
+      return new Date(a.dueDate) - new Date(b.dueDate);
+    });
+  }
+
+  // Smart task assignment based on team member specialties and capacity
+  assignTask(taskType, premium = 0) {
+    const teamMembers = Object.keys(RETENTION_TEAM);
+
+    // Find best match based on specialties
+    let bestMatch = teamMembers[0];
+
+    for (const member of teamMembers) {
+      const memberData = RETENTION_TEAM[member];
+
+      // Check if member specializes in this task type
+      if (memberData.specialties.includes(taskType)) {
+        bestMatch = member;
+        break;
+      }
+
+      // For high-value accounts, prefer members with "high-value" specialty
+      if (premium >= 5000 && memberData.specialties.includes("high-value")) {
+        bestMatch = member;
+        break;
+      }
+    }
+
+    return bestMatch;
+  }
+
+  // Send SMS notification to assigned team member
+  async sendTaskNotification(task) {
+    const assignedMember = RETENTION_TEAM[task.assignedTo];
+
+    if (!assignedMember || !assignedMember.phone) {
+      console.warn(`No phone number for ${task.assignedTo}`);
+      return false;
+    }
+
+    const message = this.formatTaskSMS(task);
+
+    try {
+      // In a real implementation, you'd use Twilio's REST API
+      // For now, we'll simulate and log the notification
+      console.log(`📱 SMS to ${task.assignedTo} (${assignedMember.phone}):`);
+      console.log(message);
+
+      // Save notification to database
+      await this.saveNotification({
+        taskId: task.id,
+        recipientName: task.assignedTo,
+        recipientPhone: assignedMember.phone,
+        message: message,
+        sentAt: new Date(),
+        type: "sms",
+      });
+
+      return true;
+    } catch (error) {
+      console.error("Error sending SMS notification:", error);
+      return false;
+    }
+  }
+
+  // Format task information for SMS
+  formatTaskSMS(task) {
+    const priorityEmoji = {
+      high: "🔴",
+      medium: "🟡",
+      low: "🟢",
+    };
+
+    return `${priorityEmoji[task.priority]} NEW TASK ASSIGNED
+
+Policy: ${task.policyNumber}
+Type: ${task.type.replace(/_/g, " ").toUpperCase()}
+Premium: $${task.premium?.toLocaleString() || "N/A"}
+Due: ${task.dueDate.toLocaleDateString()} ${task.dueDate.toLocaleTimeString()}
+
+${task.description}
+
+Est. Time: ${task.estimatedDuration}
+Priority: ${task.priority.toUpperCase()}
+
+Check the app for full details and action items.`;
+  }
+
+  // Save task to database
+  async saveTask(task) {
+    try {
+      const { data, error } = await DatabaseService.supabase
+        .from("retention_tasks")
+        .insert({
+          task_id: task.id,
+          type: task.type,
+          priority: task.priority,
+          policy_number: task.policyNumber,
+          customer_name: task.customerName,
+          premium: task.premium,
+          description: task.description,
+          suggested_actions: task.suggestedActions,
+          assigned_to: task.assignedTo,
+          due_date: task.dueDate,
+          estimated_duration: task.estimatedDuration,
+          status: "open",
+          created_at: task.createdAt,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error("Error saving task:", error);
+      return null;
+    }
+  }
+
+  // Save notification to database
+  async saveNotification(notification) {
+    try {
+      const { data, error } = await DatabaseService.supabase
+        .from("notifications")
+        .insert(notification)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error("Error saving notification:", error);
+      return null;
+    }
+  }
+
+  // Get team workload distribution
+  getTeamWorkload(tasks) {
+    const workload = {};
+
+    Object.keys(RETENTION_TEAM).forEach((member) => {
+      workload[member] = {
+        assigned: tasks.filter((task) => task.assignedTo === member).length,
+        capacity: RETENTION_TEAM[member].capacity,
+        utilization: 0,
+      };
+
+      workload[member].utilization =
+        (workload[member].assigned / workload[member].capacity) * 100;
+    });
+
+    return workload;
+  }
+
+  // Generate team performance report
+  generateTeamReport(tasks, completedTasks = []) {
+    const report = {
+      overview: {
+        totalTasks: tasks.length,
+        completedTasks: completedTasks.length,
+        completionRate: (completedTasks.length / tasks.length) * 100,
+        averageResponseTime: "2.5 hours", // Calculate from actual data
+      },
+      teamMetrics: {},
+      priorities: {
+        high: tasks.filter((t) => t.priority === "high").length,
+        medium: tasks.filter((t) => t.priority === "medium").length,
+        low: tasks.filter((t) => t.priority === "low").length,
+      },
+    };
+
+    Object.keys(RETENTION_TEAM).forEach((member) => {
+      const memberTasks = tasks.filter((t) => t.assignedTo === member);
+      const memberCompleted = completedTasks.filter(
+        (t) => t.assignedTo === member
+      );
+
+      report.teamMetrics[member] = {
+        assigned: memberTasks.length,
+        completed: memberCompleted.length,
+        completionRate:
+          memberTasks.length > 0
+            ? (memberCompleted.length / memberTasks.length) * 100
+            : 0,
+        specialties: RETENTION_TEAM[member].specialties,
+        capacity: RETENTION_TEAM[member].capacity,
+      };
+    });
+
+    return report;
+  }
+}
+
+export const twilioTaskService = new TwilioTaskService();
+export { RETENTION_TEAM };
