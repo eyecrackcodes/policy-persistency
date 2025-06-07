@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { isMobile } from "react-device-detect";
+import useDeviceDetect from "../hooks/useDeviceDetect";
 import {
   Users,
   Clock,
@@ -15,18 +15,22 @@ import {
   User,
   Target,
   Activity,
+  Settings,
 } from "lucide-react";
 import {
   twilioTaskService,
   RETENTION_TEAM,
 } from "../services/twilioTaskService";
+import TaskDistributionControls from "./TaskDistributionControls";
 
 const TaskDashboard = ({ tasks = [], onTaskUpdate }) => {
+  const { isMobile } = useDeviceDetect();
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [selectedTeamMember, setSelectedTeamMember] = useState("all");
   const [taskStats, setTaskStats] = useState({});
   const [teamWorkload, setTeamWorkload] = useState({});
   const [expandedTask, setExpandedTask] = useState(null);
+  const [viewMode, setViewMode] = useState("tasks"); // "tasks" or "distribution"
 
   useEffect(() => {
     calculateTaskStats();
@@ -319,129 +323,172 @@ const TaskDashboard = ({ tasks = [], onTaskUpdate }) => {
     <div className={`${isMobile ? "p-4" : "p-6"} bg-gray-50 min-h-screen`}>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          Retention Task Dashboard
-        </h1>
-        <p className="text-gray-600">Manage and track retention team tasks</p>
-      </div>
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              Retention Task Dashboard
+            </h1>
+            <p className="text-gray-600">
+              Manage and track retention team tasks
+            </p>
+          </div>
 
-      {/* Stats Overview */}
-      <div
-        className={`grid grid-cols-2 ${
-          isMobile ? "gap-3 mb-6" : "md:grid-cols-4 gap-4 mb-8"
-        }`}
-      >
-        <StatCard
-          title="Total Tasks"
-          value={taskStats.total}
-          icon={Activity}
-          color="blue"
-        />
-        <StatCard
-          title="High Priority"
-          value={taskStats.high}
-          icon={AlertTriangle}
-          color="red"
-        />
-        <StatCard
-          title="Due Today"
-          value={taskStats.dueToday}
-          icon={Clock}
-          color="yellow"
-        />
-        <StatCard
-          title="Overdue"
-          value={taskStats.overdue}
-          icon={Calendar}
-          color="red"
-        />
-      </div>
-
-      {/* Team Workload */}
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Team Workload
-        </h2>
-        <div
-          className={`grid grid-cols-1 ${
-            isMobile ? "gap-3" : "md:grid-cols-3 gap-4"
-          }`}
-        >
-          {Object.entries(teamWorkload).map(([name, workload]) => (
-            <TeamMemberCard key={name} name={name} workload={workload} />
-          ))}
+          {/* View Toggle */}
+          <div className="bg-white rounded-lg border border-gray-200 p-1">
+            <div className="flex space-x-1">
+              <button
+                onClick={() => setViewMode("tasks")}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === "tasks"
+                    ? "bg-blue-500 text-white"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                📋 Tasks
+              </button>
+              <button
+                onClick={() => setViewMode("distribution")}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === "distribution"
+                    ? "bg-blue-500 text-white"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                <Settings className="inline h-4 w-4 mr-1" />
+                Distribution
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-        <div
-          className={`flex ${
-            isMobile
-              ? "flex-col space-y-3"
-              : "flex-row items-center justify-between"
-          }`}
-        >
+      {/* Conditional Content Based on View Mode */}
+      {viewMode === "tasks" ? (
+        <>
+          {/* Stats Overview */}
           <div
-            className={`flex ${
-              isMobile ? "flex-col space-y-2" : "items-center space-x-4"
+            className={`grid grid-cols-2 ${
+              isMobile ? "gap-3 mb-6" : "md:grid-cols-4 gap-4 mb-8"
             }`}
           >
-            <div className="flex items-center space-x-2">
-              <Filter className="h-5 w-5 text-gray-400" />
-              <span className="font-medium text-gray-700">Filters:</span>
-            </div>
-            <select
-              value={selectedFilter}
-              onChange={(e) => setSelectedFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            >
-              <option value="all">All Priorities</option>
-              <option value="high">High Priority</option>
-              <option value="medium">Medium Priority</option>
-              <option value="low">Low Priority</option>
-            </select>
-            <select
-              value={selectedTeamMember}
-              onChange={(e) => setSelectedTeamMember(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
-            >
-              <option value="all">All Team Members</option>
-              {Object.keys(RETENTION_TEAM).map((member) => (
-                <option key={member} value={member}>
-                  {member}
-                </option>
-              ))}
-            </select>
+            <StatCard
+              title="Total Tasks"
+              value={taskStats.total}
+              icon={Activity}
+              color="blue"
+            />
+            <StatCard
+              title="High Priority"
+              value={taskStats.high}
+              icon={AlertTriangle}
+              color="red"
+            />
+            <StatCard
+              title="Due Today"
+              value={taskStats.dueToday}
+              icon={Clock}
+              color="yellow"
+            />
+            <StatCard
+              title="Overdue"
+              value={taskStats.overdue}
+              icon={Calendar}
+              color="red"
+            />
           </div>
-          <div
-            className={`${
-              isMobile ? "text-center" : "text-right"
-            } text-sm text-gray-600`}
-          >
-            Showing {filteredTasks.length} of {tasks.length} tasks
-          </div>
-        </div>
-      </div>
 
-      {/* Task List */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Active Tasks
-        </h2>
-        {filteredTasks.length > 0 ? (
-          <div className="space-y-3">
-            {filteredTasks.map((task) => (
-              <TaskCard key={task.id} task={task} />
-            ))}
+          {/* Team Workload */}
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Team Workload
+            </h2>
+            <div
+              className={`grid grid-cols-1 ${
+                isMobile ? "gap-3" : "md:grid-cols-3 gap-4"
+              }`}
+            >
+              {Object.entries(teamWorkload).map(([name, workload]) => (
+                <TeamMemberCard key={name} name={name} workload={workload} />
+              ))}
+            </div>
           </div>
-        ) : (
-          <div className="text-center py-8">
-            <CheckCircle className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">No tasks match your current filters</p>
+
+          {/* Filters */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+            <div
+              className={`flex ${
+                isMobile
+                  ? "flex-col space-y-3"
+                  : "flex-row items-center justify-between"
+              }`}
+            >
+              <div
+                className={`flex ${
+                  isMobile ? "flex-col space-y-2" : "items-center space-x-4"
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <Filter className="h-5 w-5 text-gray-400" />
+                  <span className="font-medium text-gray-700">Filters:</span>
+                </div>
+                <select
+                  value={selectedFilter}
+                  onChange={(e) => setSelectedFilter(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="all">All Priorities</option>
+                  <option value="high">High Priority</option>
+                  <option value="medium">Medium Priority</option>
+                  <option value="low">Low Priority</option>
+                </select>
+                <select
+                  value={selectedTeamMember}
+                  onChange={(e) => setSelectedTeamMember(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="all">All Team Members</option>
+                  {Object.keys(RETENTION_TEAM).map((member) => (
+                    <option key={member} value={member}>
+                      {member}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div
+                className={`${
+                  isMobile ? "text-center" : "text-right"
+                } text-sm text-gray-600`}
+              >
+                Showing {filteredTasks.length} of {tasks.length} tasks
+              </div>
+            </div>
           </div>
-        )}
-      </div>
+
+          {/* Task List */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Active Tasks
+            </h2>
+            {filteredTasks.length > 0 ? (
+              <div className="space-y-3">
+                {filteredTasks.map((task) => (
+                  <TaskCard key={task.id} task={task} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <CheckCircle className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">
+                  No tasks match your current filters
+                </p>
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        /* Distribution Controls View */
+        <TaskDistributionControls tasks={tasks} onTaskUpdate={onTaskUpdate} />
+      )}
     </div>
   );
 };

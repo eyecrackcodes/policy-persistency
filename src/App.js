@@ -44,12 +44,15 @@ import ActionQueue from "./components/ActionQueue";
 import TaskDashboard from "./components/TaskDashboard";
 import { DatabaseService } from "./config/supabase";
 import { twilioTaskService } from "./services/twilioTaskService";
-import { isMobile } from "react-device-detect";
+import useDeviceDetect from "./hooks/useDeviceDetect";
 import "./App.css";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8"];
 
 function App() {
+  // Device detection
+  const { isMobile } = useDeviceDetect();
+
   // Enhanced State Management for Multi-Data Type Support
   const [data, setData] = useState([]);
   const [nsfData, setNsfData] = useState([]);
