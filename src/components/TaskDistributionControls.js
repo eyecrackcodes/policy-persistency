@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { taskDistributionService } from "../services/taskDistributionService";
-import { DatabaseService } from "../config/supabase";
+import { supabase } from "../config/supabase";
 
 const TaskDistributionControls = ({ tasks, onTaskUpdate }) => {
   const [currentStrategy, setCurrentStrategy] = useState("hybrid");
@@ -44,7 +44,7 @@ const TaskDistributionControls = ({ tasks, onTaskUpdate }) => {
 
       // Apply redistributions to database
       for (const redistribution of redistributions) {
-        await DatabaseService.supabase
+        await supabase
           .from("retention_tasks")
           .update({ assigned_to: redistribution.to })
           .eq("task_id", redistribution.taskId);
