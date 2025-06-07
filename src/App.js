@@ -155,7 +155,7 @@ function App() {
         // Calculate analytics for loaded data
         calculateAnalytics(processedPolicies);
         calculateDataFreshness(processedPolicies);
-        generateActionItems(processedPolicies);
+        await generateActionItems(processedPolicies);
 
         console.log(`✅ Loaded ${policies.length} policies from database`);
         setDbConnected(true);
@@ -626,7 +626,7 @@ function App() {
       setFilteredData(combined);
       calculateAnalytics(combined);
       calculateDataFreshness(combined);
-      generateActionItems(combined);
+      await generateActionItems(combined);
 
       console.log(
         `✅ Successfully saved ${newData.length} records to database`
@@ -658,7 +658,7 @@ function App() {
       setFilteredData(combined);
       calculateAnalytics(combined);
       calculateDataFreshness(combined);
-      generateActionItems(combined);
+      await generateActionItems(combined);
 
       // Show error to user
       alert(
@@ -1580,7 +1580,9 @@ function App() {
       id: "tasks",
       name: "Tasks",
       icon: CheckCircle,
-      badge: retentionTasks.filter((t) => t.status === "open").length,
+      badge: Array.isArray(retentionTasks)
+        ? retentionTasks.filter((t) => t.status === "open").length
+        : 0,
     },
     { id: "analytics", name: "Analytics", icon: DollarSign },
   ];

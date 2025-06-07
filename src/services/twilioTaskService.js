@@ -1,4 +1,4 @@
-import { DatabaseService } from "../config/supabase";
+import { supabase } from "../config/supabase";
 import {
   taskDistributionService,
   RETENTION_TEAM,
@@ -180,15 +180,29 @@ class TwilioTaskService {
   // Get existing tasks from database
   async getExistingTasks() {
     try {
-      const { data, error } = await DatabaseService.supabase
+      // Check if supabase is available
+      if (!supabase) {
+        console.warn(
+          "Supabase client not available, using fallback assignment"
+        );
+        return [];
+      }
+
+      const { data, error } = await supabase
         .from("retention_tasks")
         .select("*")
         .eq("status", "open");
 
-      if (error) throw error;
+      if (error) {
+        console.warn(
+          "Database query failed, using fallback assignment:",
+          error.message
+        );
+        return [];
+      }
 
       // Convert database format to expected format
-      return data.map((task) => ({
+      return (data || []).map((task) => ({
         id: task.task_id,
         type: task.type,
         priority: task.priority,
@@ -197,7 +211,10 @@ class TwilioTaskService {
         status: task.status,
       }));
     } catch (error) {
-      console.error("Error fetching existing tasks:", error);
+      console.warn(
+        "Error fetching existing tasks, using fallback assignment:",
+        error.message
+      );
       return []; // Return empty array as fallback
     }
   }
@@ -262,7 +279,7 @@ Check the app for full details and action items.`;
   // Save task to database
   async saveTask(task) {
     try {
-      const { data, error } = await DatabaseService.supabase
+      const { data, error } = await supabase
         .from("retention_tasks")
         .insert({
           task_id: task.id,
@@ -293,7 +310,7 @@ Check the app for full details and action items.`;
   // Save notification to database
   async saveNotification(notification) {
     try {
-      const { data, error } = await DatabaseService.supabase
+      const { data, error } = await supabase
         .from("notifications")
         .insert(notification)
         .select()
