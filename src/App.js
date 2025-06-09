@@ -36,14 +36,18 @@ import {
   RefreshCw,
   AlertCircle,
   Database,
+  Target,
 } from "lucide-react";
 import { emailService } from "./services/emailService";
 import { n8nService } from "./services/n8nService";
 import ActionGenerator from "./utils/actionGenerator";
 import ActionQueue from "./components/ActionQueue";
 import TaskDashboard from "./components/TaskDashboard";
+import InsightModal from "./components/InsightModal";
+import PersistencyAnalytics from "./components/PersistencyAnalytics";
+import CustomerContactPanel from "./components/CustomerContactPanel";
 import { DatabaseService } from "./config/supabase";
-import { twilioTaskService } from "./services/twilioTaskService";
+import { taskService } from "./services/taskService";
 import useDeviceDetect from "./hooks/useDeviceDetect";
 import "./App.css";
 
@@ -86,15 +90,21 @@ function App() {
   const [dbConnected, setDbConnected] = useState(false);
 
   // Task Management State
-  const [currentView, setCurrentView] = useState("dashboard"); // 'dashboard', 'tasks', 'analytics'
+  const [currentView, setCurrentView] = useState("dashboard"); // 'dashboard', 'tasks', 'analytics', 'persistency'
   const [retentionTasks, setRetentionTasks] = useState([]);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+
+  // Modal State
+  const [selectedInsight, setSelectedInsight] = useState(null);
+  const [showInsightModal, setShowInsightModal] = useState(false);
 
   // Load data from Supabase on app start
   const loadDataFromDatabase = useCallback(async () => {
     setDbLoading(true);
-    try {
-      console.log("🔄 Loading data from Supabase...");
+          try {
+        if (process.env.NODE_ENV === 'development') {
+          console.log("🔄 Loading data from Supabase...");
+        }
       const policies = await DatabaseService.getAllPolicies();
 
       if (policies.length > 0) {
@@ -157,10 +167,12 @@ function App() {
         calculateDataFreshness(processedPolicies);
         await generateActionItems(processedPolicies);
 
-        console.log(`✅ Loaded ${policies.length} policies from database`);
+        // Success logging already handled in supabase.js
         setDbConnected(true);
       } else {
-        console.log("📝 No existing data found in database");
+        if (process.env.NODE_ENV === 'development') {
+          console.log("📝 No existing data found in database");
+        }
         setDbConnected(true);
       }
     } catch (error) {
@@ -1154,17 +1166,18 @@ function App() {
       setActions(generatedActions);
 
       // Generate retention tasks for the team
-      const tasks = await twilioTaskService.generateRetentionTasks(policyData);
+      const tasks = await taskService.generateRetentionTasks(policyData);
       const taskArray = Array.isArray(tasks) ? tasks : [];
       setRetentionTasks(taskArray);
 
-      // Send notifications for high-priority tasks
-      for (const task of taskArray.filter((t) => t.priority === "high")) {
-        await twilioTaskService.sendTaskNotification(task);
-        await twilioTaskService.saveTask(task);
-      }
+              // Save all tasks to database
+        for (const task of taskArray) {
+          await taskService.saveTask(task);
+        }
 
-      console.log(`📋 Generated ${taskArray.length} retention tasks`);
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`📋 Generated ${taskArray.length} retention tasks`);
+      }
     } catch (error) {
       console.error("Error generating actions:", error);
     }
@@ -1283,9 +1296,11 @@ function App() {
   useEffect(() => {
     const combined = [...nsfData, ...cancellationData];
     if (combined.length !== data.length) {
-      console.log(
-        `🔄 Updating combined data: NSF: ${nsfData.length}, Cancellation: ${cancellationData.length}, Total: ${combined.length}`
-      );
+      if (process.env.NODE_ENV === 'development') {
+        console.log(
+          `🔄 Updating combined data: NSF: ${nsfData.length}, Cancellation: ${cancellationData.length}, Total: ${combined.length}`
+        );
+      }
       setData(combined);
       setFilteredData(combined);
       if (combined.length > 0) {
@@ -1402,7 +1417,9 @@ function App() {
         setRetentionTasks([]);
         setActions([]);
 
-        console.log("✅ Database cleared successfully");
+        if (process.env.NODE_ENV === 'development') {
+          console.log("✅ Database cleared successfully");
+        }
         alert("Database cleared successfully!");
       } catch (error) {
         console.error("❌ Error clearing database:", error);
@@ -1411,6 +1428,17 @@ function App() {
         setDbLoading(false);
       }
     }
+  };
+
+  // Handle insight click
+  const handleInsightClick = (insight, type) => {
+    setSelectedInsight({ ...insight, type });
+    setShowInsightModal(true);
+  };
+
+  const closeInsightModal = () => {
+    setShowInsightModal(false);
+    setSelectedInsight(null);
   };
 
   // Pagination
@@ -1586,6 +1614,7 @@ function App() {
         : 0,
     },
     { id: "analytics", name: "Analytics", icon: DollarSign },
+    { id: "persistency", name: "Persistency", icon: Target },
   ];
 
   // Mobile Navigation Component
@@ -1796,6 +1825,12 @@ function App() {
             tasks={retentionTasks}
             onTaskUpdate={handleTaskUpdate}
           />
+        )}
+
+        {currentView === "persistency" && (
+          <div className="p-6">
+            <PersistencyAnalytics data={data} filteredData={filteredData} />
+          </div>
         )}
 
         {currentView === "dashboard" && (
@@ -2449,7 +2484,8 @@ function App() {
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {/* High Risk Agents */}
-                        <div className="bg-gradient-to-br from-red-50 to-orange-50 p-4 rounded-xl border border-red-200">
+                        <div className="bg-gradient-to-br from-red-50 to-orange-50 p-4 rounded-xl border border-red-200 hover:shadow-lg transition-all duration-200 cursor-pointer"
+                             onClick={() => analytics.insights.highRiskAgents?.length > 0 && handleInsightClick(analytics.insights.highRiskAgents[0], 'highRiskAgent')}>
                           <h4 className="font-semibold text-red-800 mb-3 flex items-center">
                             <AlertTriangle className="h-4 w-4 mr-2" />
                             High Risk Agents
@@ -2471,6 +2507,9 @@ function App() {
                                     </span>
                                   </div>
                                 ))}
+                              <div className="mt-3 text-xs text-red-600 font-medium">
+                                Click for details →
+                              </div>
                             </div>
                           ) : (
                             <p className="text-sm text-gray-600">
@@ -2480,7 +2519,8 @@ function App() {
                         </div>
 
                         {/* Top Products */}
-                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-200">
+                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-200 hover:shadow-lg transition-all duration-200 cursor-pointer"
+                             onClick={() => analytics.insights.topProducts?.length > 0 && handleInsightClick(analytics.insights.topProducts[0], 'topProduct')}>
                           <h4 className="font-semibold text-blue-800 mb-3 flex items-center">
                             <TrendingUp className="h-4 w-4 mr-2" />
                             Top NSF Products
@@ -2502,6 +2542,9 @@ function App() {
                                     </span>
                                   </div>
                                 ))}
+                              <div className="mt-3 text-xs text-blue-600 font-medium">
+                                Click for details →
+                              </div>
                             </div>
                           ) : (
                             <p className="text-sm text-gray-600">
@@ -2511,7 +2554,8 @@ function App() {
                         </div>
 
                         {/* Top States */}
-                        <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-xl border border-green-200">
+                        <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-xl border border-green-200 hover:shadow-lg transition-all duration-200 cursor-pointer"
+                             onClick={() => analytics.insights.topStates?.length > 0 && handleInsightClick(analytics.insights.topStates[0], 'topState')}>
                           <h4 className="font-semibold text-green-800 mb-3 flex items-center">
                             <DollarSign className="h-4 w-4 mr-2" />
                             Top States by Volume
@@ -2533,6 +2577,9 @@ function App() {
                                     </span>
                                   </div>
                                 ))}
+                              <div className="mt-3 text-xs text-green-600 font-medium">
+                                Click for details →
+                              </div>
                             </div>
                           ) : (
                             <p className="text-sm text-gray-600">
@@ -3057,6 +3104,16 @@ function App() {
         />
       )}
 
+      {/* Insight Detail Modal */}
+      {showInsightModal && selectedInsight && (
+        <InsightModal
+          insight={selectedInsight}
+          onClose={closeInsightModal}
+          data={data}
+          analytics={analytics}
+        />
+      )}
+
       {/* Loading Overlay */}
       {loading && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -3066,6 +3123,16 @@ function App() {
           </div>
         </div>
       )}
+
+              {/* Strategic Contact Panel - Bottom left, less intrusive */}
+        {retentionTasks.length > 0 && retentionTasks.some(task => task.priority === 'high') && (
+          <div className="fixed bottom-4 left-4 z-40">
+            <CustomerContactPanel 
+              task={retentionTasks.find(task => task.priority === 'high')} 
+              policy={retentionTasks.find(task => task.priority === 'high')?.policy}
+            />
+          </div>
+        )}
     </div>
   );
 }

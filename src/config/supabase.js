@@ -4,9 +4,12 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
 const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
 
-console.log("🔧 Supabase Configuration:");
-console.log("URL present:", !!supabaseUrl);
-console.log("Key present:", !!supabaseAnonKey);
+// Only log in development
+if (process.env.NODE_ENV === 'development') {
+  console.log("🔧 Supabase Configuration:");
+  console.log("URL present:", !!supabaseUrl);
+  console.log("Key present:", !!supabaseAnonKey);
+}
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error(
@@ -22,7 +25,9 @@ export const DatabaseService = {
   // Insert policies data
   async insertPolicies(policies) {
     try {
-      console.log("🔄 Attempting to insert policies to Supabase...");
+      if (process.env.NODE_ENV === 'development') {
+        console.log("🔄 Attempting to insert policies to Supabase...");
+      }
       const { data, error } = await supabase
         .from("policies")
         .insert(policies)
@@ -30,16 +35,12 @@ export const DatabaseService = {
 
       if (error) {
         console.error("Error inserting policies:", error);
-        console.error("Error details:", {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-        });
         throw new Error(`Database insert failed: ${error.message}`);
       }
 
-      console.log("✅ Successfully inserted policies to Supabase");
+      if (process.env.NODE_ENV === 'development') {
+        console.log("✅ Successfully inserted policies to Supabase");
+      }
       return data;
     } catch (err) {
       console.error("Supabase insert error:", err);
@@ -50,7 +51,9 @@ export const DatabaseService = {
   // Get all policies
   async getAllPolicies() {
     try {
-      console.log("🔄 Fetching policies from Supabase...");
+      if (process.env.NODE_ENV === 'development') {
+        console.log("🔄 Fetching policies from Supabase...");
+      }
       const { data, error } = await supabase
         .from("policies")
         .select("*")
@@ -58,18 +61,14 @@ export const DatabaseService = {
 
       if (error) {
         console.error("Error fetching policies:", error);
-        console.error("Error details:", {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-        });
         throw new Error(`Database fetch failed: ${error.message}`);
       }
 
-      console.log(
-        `✅ Successfully fetched ${data?.length || 0} policies from Supabase`
-      );
+      if (process.env.NODE_ENV === 'development') {
+        console.log(
+          `✅ Successfully fetched ${data?.length || 0} policies from Supabase`
+        );
+      }
       return data || [];
     } catch (err) {
       console.error("Supabase fetch error:", err);

@@ -1,15 +1,10 @@
 import { supabase } from "../config/supabase";
-import {
-  taskDistributionService,
-  RETENTION_TEAM,
-} from "./taskDistributionService";
+import { taskDistributionService, RETENTION_TEAM } from "./taskDistributionService";
 
-class TwilioTaskService {
+class TaskService {
   constructor() {
-    this.twilioAccountSid = process.env.REACT_APP_TWILIO_ACCOUNT_SID;
-    this.twilioAuthToken = process.env.REACT_APP_TWILIO_AUTH_TOKEN;
-    this.twilioPhoneNumber = process.env.REACT_APP_TWILIO_PHONE_NUMBER;
-    this.workspaceId = process.env.REACT_APP_TWILIO_WORKSPACE_ID;
+    // Remove SMS/Twilio functionality
+    this.notificationHistory = new Map(); // Track task assignments for reporting
   }
 
   // Analyze policy data to generate actionable tasks
@@ -36,7 +31,7 @@ class TwilioTaskService {
             description: `Urgent NSF follow-up for high-value policy ($${policy.annual_premium.toLocaleString()})`,
             suggestedActions: [
               "Contact customer within 24 hours",
-              "Offer payment plan options",
+              "Offer payment plan options", 
               "Verify updated payment information",
               "Document conversation in CRM",
             ],
@@ -48,6 +43,7 @@ class TwilioTaskService {
             dueDate: new Date(now.getTime() + 24 * 60 * 60 * 1000), // Due in 24 hours
             estimatedDuration: "30 minutes",
             createdAt: now,
+            policy: policy, // Include full policy data for contact panel
           });
         }
       }
@@ -78,6 +74,7 @@ class TwilioTaskService {
           dueDate: new Date(now.getTime() + 48 * 60 * 60 * 1000), // Due in 48 hours
           estimatedDuration: "45 minutes",
           createdAt: now,
+          policy: policy, // Include full policy data for contact panel
         });
       }
 
@@ -106,6 +103,7 @@ class TwilioTaskService {
           dueDate: new Date(now.getTime() + 72 * 60 * 60 * 1000), // Due in 72 hours
           estimatedDuration: "20 minutes",
           createdAt: now,
+          policy: policy, // Include full policy data for contact panel
         });
       }
     }
@@ -120,28 +118,39 @@ class TwilioTaskService {
     });
   }
 
-  // Enhanced task assignment using intelligent distribution
+  // Intelligent task assignment using distribution service
   async assignTask(taskType, premium = 0, priority = "medium") {
     try {
-      // Get existing tasks to analyze current workload
       const existingTasks = await this.getExistingTasks();
 
-      // Create a mock task object for the distribution service
+      // Create a mock task for assignment algorithm
       const mockTask = {
         type: taskType,
         premium: premium,
         priority: priority,
       };
 
-      // Use the distribution service to find the best assignment
+      // Use task distribution service for intelligent assignment
       const assignedMember = taskDistributionService.distributeTask(
         mockTask,
         existingTasks
       );
 
-      console.log(
-        `🎯 Task assigned to ${assignedMember} using ${taskDistributionService.getCurrentStrategy()} strategy`
-      );
+      if (process.env.NODE_ENV === 'development') {
+        console.log(
+          `🎯 Task assigned to ${assignedMember} using ${taskDistributionService.getCurrentStrategy()} strategy`
+        );
+      }
+
+      // Track assignment for reporting
+      this.notificationHistory.set(Date.now(), {
+        assignedTo: assignedMember,
+        taskType: taskType,
+        premium: premium,
+        priority: priority,
+        timestamp: new Date()
+      });
+
       return assignedMember;
     } catch (error) {
       console.error("Error in intelligent task assignment:", error);
@@ -219,69 +228,12 @@ class TwilioTaskService {
     }
   }
 
-  // Send SMS notification to assigned team member
-  async sendTaskNotification(task) {
-    const assignedMember = RETENTION_TEAM[task.assignedTo];
-
-    if (!assignedMember || !assignedMember.phone) {
-      console.warn(`No phone number for ${task.assignedTo}`);
-      return false;
-    }
-
-    const message = this.formatTaskSMS(task);
-
-    try {
-      // In a real implementation, you'd use Twilio's REST API
-      // For now, we'll simulate and log the notification
-      console.log(`📱 SMS to ${task.assignedTo} (${assignedMember.phone}):`);
-      console.log(message);
-
-      // Save notification to database
-      await this.saveNotification({
-        taskId: task.id,
-        recipientName: task.assignedTo,
-        recipientPhone: assignedMember.phone,
-        message: message,
-        sentAt: new Date(),
-        type: "sms",
-      });
-
-      return true;
-    } catch (error) {
-      console.error("Error sending SMS notification:", error);
-      return false;
-    }
-  }
-
-  // Format task information for SMS
-  formatTaskSMS(task) {
-    const priorityEmoji = {
-      high: "🔴",
-      medium: "🟡",
-      low: "🟢",
-    };
-
-    return `${priorityEmoji[task.priority]} NEW TASK ASSIGNED
-
-Policy: ${task.policyNumber}
-Type: ${task.type.replace(/_/g, " ").toUpperCase()}
-Premium: $${task.premium?.toLocaleString() || "N/A"}
-Due: ${task.dueDate.toLocaleDateString()} ${task.dueDate.toLocaleTimeString()}
-
-${task.description}
-
-Est. Time: ${task.estimatedDuration}
-Priority: ${task.priority.toUpperCase()}
-
-Check the app for full details and action items.`;
-  }
-
   // Save task to database
   async saveTask(task) {
     try {
       const { data, error } = await supabase
         .from("retention_tasks")
-        .insert({
+        .upsert({
           task_id: task.id,
           type: task.type,
           priority: task.priority,
@@ -295,31 +247,26 @@ Check the app for full details and action items.`;
           estimated_duration: task.estimatedDuration,
           status: "open",
           created_at: task.createdAt,
+        }, { 
+          onConflict: 'task_id',
+          ignoreDuplicates: false 
         })
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // Only log errors that aren't duplicate key issues
+        if (error.code !== '23505') {
+          console.error("Error saving task:", error);
+        }
+        return null;
+      }
       return data;
     } catch (error) {
-      console.error("Error saving task:", error);
-      return null;
-    }
-  }
-
-  // Save notification to database
-  async saveNotification(notification) {
-    try {
-      const { data, error } = await supabase
-        .from("notifications")
-        .insert(notification)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error("Error saving notification:", error);
+      // Only log errors that aren't duplicate key issues
+      if (error.code !== '23505') {
+        console.error("Error saving task:", error);
+      }
       return null;
     }
   }
@@ -379,7 +326,12 @@ Check the app for full details and action items.`;
 
     return report;
   }
+
+  // Get assignment history for reporting
+  getAssignmentHistory() {
+    return Array.from(this.notificationHistory.values());
+  }
 }
 
-export const twilioTaskService = new TwilioTaskService();
-export { RETENTION_TEAM };
+export const taskService = new TaskService();
+export { RETENTION_TEAM }; 

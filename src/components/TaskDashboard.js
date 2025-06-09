@@ -16,11 +16,9 @@ import {
   Target,
   Activity,
   Settings,
+  ExternalLink,
 } from "lucide-react";
-import {
-  twilioTaskService,
-  RETENTION_TEAM,
-} from "../services/twilioTaskService";
+import { taskService, RETENTION_TEAM } from "../services/taskService";
 import TaskDistributionControls from "./TaskDistributionControls";
 
 const TaskDashboard = ({ tasks = [], onTaskUpdate }) => {
@@ -56,7 +54,7 @@ const TaskDashboard = ({ tasks = [], onTaskUpdate }) => {
   };
 
   const calculateTeamWorkload = () => {
-    const workload = twilioTaskService.getTeamWorkload(tasksArray);
+    const workload = taskService.getTeamWorkload(tasksArray);
     setTeamWorkload(workload);
   };
 
@@ -209,28 +207,50 @@ const TaskDashboard = ({ tasks = [], onTaskUpdate }) => {
               </ul>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2">
-              <button
-                onClick={() => handleTaskAction(task, "call")}
-                className="flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex-1"
-              >
-                <Phone className="h-4 w-4" />
-                <span>Call Customer</span>
-              </button>
-              <button
-                onClick={() => handleTaskAction(task, "message")}
-                className="flex items-center justify-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex-1"
-              >
-                <MessageSquare className="h-4 w-4" />
-                <span>Send Message</span>
-              </button>
-              <button
-                onClick={() => handleTaskAction(task, "complete")}
-                className="flex items-center justify-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex-1"
-              >
-                <CheckCircle className="h-4 w-4" />
-                <span>Mark Complete</span>
-              </button>
+            <div className="space-y-2">
+              {/* Primary Actions */}
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  onClick={() => handleTaskAction(task, "call")}
+                  className="flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex-1"
+                >
+                  <Phone className="h-4 w-4" />
+                  <span>Call Customer</span>
+                </button>
+                <button
+                  onClick={() => handleTaskAction(task, "message")}
+                  className="flex items-center justify-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex-1"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <span>Send Message</span>
+                </button>
+                <button
+                  onClick={() => handleTaskAction(task, "complete")}
+                  className="flex items-center justify-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex-1"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  <span>Mark Complete</span>
+                </button>
+              </div>
+              
+              {/* Secondary Actions */}
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  onClick={() => window.open(`https://ams.digitalbga.com/search?q=${encodeURIComponent(task.policyNumber)}`, '_blank')}
+                  className="flex items-center justify-center space-x-2 px-3 py-2 bg-orange-100 text-orange-700 border border-orange-200 rounded-lg hover:bg-orange-200 transition-colors flex-1"
+                  title={`View policy ${task.policyNumber} in AMS`}
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  <span>View in AMS</span>
+                </button>
+                <button
+                  onClick={() => window.open('https://crm.digitalseniorbenefits.com/', '_blank')}
+                  className="flex items-center justify-center space-x-2 px-3 py-2 bg-purple-100 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-200 transition-colors flex-1"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  <span>Open CRM</span>
+                </button>
+              </div>
             </div>
           </div>
         )}
